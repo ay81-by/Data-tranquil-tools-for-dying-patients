@@ -30,13 +30,12 @@
 
 [系统] 正在为您保存最后的数字安宁... [系统] 照片回忆将随春风消散 [系统] 聊天记录将化作天际云朵 (预计完成时间: 5分钟) 
 
-2. 见证人验证流程
 
-# 执行前必须输入： read -p "请输入患者预设的6位安全码: " code read -p "请输入见证人姓名首字母: " witness if [ "$code" != "预设值" ] || [[ ! "$witness" =~ [A-Za-z]{1,2} ]]; then echo "验证失败，已自动终止操作" exit 1 fi 
 
 📂 文件结构说明
 
-/peaceful_exit ├── erase_data.sh # 主程序
+/peaceful_exit 
+├── erase_data.sh # 主程序
 ├── README.md # 本说明文件 
 
 ⚖️ 法律免责条款
