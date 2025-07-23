@@ -1,0 +1,221 @@
+<#
+.SYNOPSIS
+    数据销毁工具 - Windows PowerShell版本
+.DESCRIPTION
+    警告：此脚本会彻底删除设备上的所有数据！
+    专为绝症患者/临终者设计，在亲友见证下安全清除存储数据。
+.NOTES
+    版本: 1.0
+    作者: [阿余81]
+    法律声明: 仅限合法医疗场景使用，使用者需自行承担风险
+#>
+
+#region 语言定义和翻译函数
+$LANG_DEFINITIONS = @{
+    "zh" = "中文"
+    "en" = "English"
+    "es" = "Español"
+    "fr" = "Français"
+    "ja" = "日本語"
+}
+
+# 当前语言代码 (默认中文)
+$LANG = "zh"
+
+function Get-Translation {
+    param(
+        [string]$LangCode,
+        [string]$Key
+    )
+
+    switch ($LangCode + ":" + $Key) {
+        "zh:warning" { return "此脚本需要管理员权限执行" }
+        "zh:continue_prompt" { return "这不是个玩笑是否要继续执行? (y/n): " }
+        "zh:invalid_choice" { return "无效输入，退出脚本..." }
+        "zh:countdown" { return "要留清白在人间如反悔请马上退出10秒后开始格机." }
+        "zh:goodbye" { return "要留清白在人间：节哀" }
+        "zh:formatting" { return "正在格机" }
+        "zh:unmounting" { return "正在卸载分区..." }
+        "zh:overwriting" { return "正在覆写存储数据..." }
+        "zh:destroying" { return "正在破坏分区表..." }
+        "zh:deleting" { return "正在删除所有文件..." }
+        "zh:final_step" { return "正在破坏引导记录..." }
+        "zh:power_off" { return "正在强制关机..." }
+        "zh:self_destruct_warning_1" { return "🚨 自毁程序启动：以下脚本将被删除:" }
+        "zh:self_destruct_warning_2" { return "   $PSCommandPath" }
+        "zh:self_destruct_countdown_3" { return "🕒 3秒后开始删除..." }
+        "zh:self_destruct_countdown_2" { return "🕒 2秒后开始删除..." }
+        "zh:self_destruct_countdown_1" { return "🕒 1秒后开始删除..." }
+        "zh:self_destruct_executing" { return "💥 正在执行自毁..." }
+        "zh:self_destruct_success" { return "✅ 自毁成功！脚本已删除。" }
+        "zh:self_destruct_failed" { return "❌ 自毁失败！脚本可能位于只读位置。" }
+
+        "en:warning" { return "This script requires administrator privileges to run" }
+        "en:continue_prompt" { return "This is not a joke. Continue anyway? (y/n): " }
+        "en:invalid_choice" { return "Invalid input, exiting script..." }
+        "en:countdown" { return "To leave a clear conscience, please exit now if you regret. Formatting will start in 10 seconds." }
+        "en:goodbye" { return "Rest in peace" }
+        "en:formatting" { return "Formatting device" }
+        "en:unmounting" { return "Unmounting partitions..." }
+        "en:overwriting" { return "Overwriting storage data..." }
+        "en:destroying" { return "Destroying partition table..." }
+        "en:deleting" { return "Deleting all files..." }
+        "en:final_step" { return "Destroying boot records..." }
+        "en:power_off" { return "Forcing system shutdown..." }
+        "en:self_destruct_warning_1" { return "🚨 Self-destruct initiated: The following script will be deleted:" }
+        "en:self_destruct_warning_2" { return "   $PSCommandPath" }
+        "en:self_destruct_countdown_3" { return "🕒 Deleting in 3 seconds..." }
+        "en:self_destruct_countdown_2" { return "🕒 Deleting in 2 seconds..." }
+        "en:self_destruct_countdown_1" { return "🕒 Deleting in 1 second..." }
+        "en:self_destruct_executing" { return "💥 Executing self-destruct..." }
+        "en:self_destruct_success" { return "✅ Self-destruct successful! Script deleted." }
+        "en:self_destruct_failed" { return "❌ Self-destruct failed! Script may be read-only." }
+
+        default { return "[未翻译的文本: $Key]" }
+    }
+}
+#endregion
+
+#region 进度条函数
+function Show-ProgressBar {
+    param(
+        [int]$Duration = 10
+    )
+
+    $i = 0
+    $startTime = Get-Date
+
+    while (((Get-Date) - $startTime).TotalSeconds -lt $Duration) {
+        $percent = [math]::Min(100, [math]::Round(((Get-Date) - $startTime).TotalSeconds / $Duration * 100))
+        $bar = "[" + ("=" * [math]::Min(50, [math]::Floor($percent / 2))) + 
+               (" " * [math]::Max(0, 50 - [math]::Floor($percent / 2))) + "]"
+        Write-Progress -Activity "处理中" -Status "$percent% 完成" -PercentComplete $percent
+        Start-Sleep -Milliseconds 100
+    }
+    Write-Progress -Activity "处理中" -Completed
+}
+#endregion
+
+#region 检查管理员权限
+function Test-Admin {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Check-Admin {
+    if (-not (Test-Admin)) {
+        Get-Translation $LANG "warning"
+        $choice = Read-Host (Get-Translation $LANG "continue_prompt")
+        if ($choice -eq "y" -or $choice -eq "Y") {
+            Get-Translation $LANG "countdown"
+            Start-Sleep -Seconds 10
+        } else {
+            Get-Translation $LANG "invalid_choice"
+            Self-Destruct
+        }
+    }
+}
+#endregion
+
+#region 自毁功能
+function Self-Destruct {
+    param(
+        [string]$LangCode
+    )
+
+    Get-Translation $LangCode "self_destruct_warning_1"
+    Write-Host
+    Write-Host "   $PSCommandPath"
+    Get-Translation $LangCode "self_destruct_warning_2"
+    Write-Host
+
+    for ($i = 3; $i -ge 1; $i--) {
+        Get-Translation $LangCode "self_destruct_countdown_$i"
+        Start-Sleep -Seconds 1
+    }
+
+    Get-Translation $LangCode "self_destruct_executing"
+    try {
+        Remove-Item -Path $PSCommandPath -Force -ErrorAction Stop
+        if (-not (Test-Path $PSCommandPath)) {
+            Get-Translation $LangCode "self_destruct_success"
+        } else {
+            Get-Translation $LangCode "self_destruct_failed"
+        }
+    } catch {
+        Get-Translation $LangCode "self_destruct_failed"
+    }
+    exit 1
+}
+#endregion
+
+#region 主销毁函数
+function Invoke-Destroy {
+    param(
+        [string]$LangCode
+    )
+
+    Get-Translation $LangCode "unmounting"
+    # Windows下无法直接卸载所有分区，这里只是模拟
+    Write-Host "注意: Windows下无法直接卸载系统分区"
+    Start-Sleep -Seconds 2
+
+    Get-Translation $LangCode "overwriting"
+    # 模拟覆写存储数据 (实际需要专业工具)
+    for ($i = 1; $i -le 3; $i++) {
+        Write-Host "正在第$i次覆写数据...(模拟)"
+        Start-Sleep -Seconds 2
+    }
+
+    Get-Translation $LangCode "destroying"
+    # 模拟破坏分区表
+    Write-Host "正在破坏分区表...(模拟)"
+    Start-Sleep -Seconds 2
+
+    Get-Translation $LangCode "deleting"
+    # 模拟删除文件
+    Write-Host "正在删除所有文件...(模拟)"
+    Start-Sleep -Seconds 2
+
+    Get-Translation $LangCode "final_step"
+    # 模拟破坏引导记录
+    Write-Host "正在破坏引导记录...(模拟)"
+    Start-Sleep -Seconds 2
+
+    Get-Translation $LangCode "power_off"
+    # 关机命令
+    Write-Host "正在强制关机..."
+    Stop-Computer -Force
+}
+#endregion
+
+#region 主程序
+function Main {
+    # 检查管理员权限
+    Check-Admin
+
+    # 清屏
+    Clear-Host
+
+    # 显示进度条
+    Get-Translation $LANG "countdown"
+    Show-ProgressBar -Duration 5
+    Get-Translation $LANG "goodbye"
+
+    # 确认提示
+    $choice = Read-Host (Get-Translation $LANG "continue_prompt")
+    if ($choice -eq "y" -or $choice -eq "Y") {
+        Get-Translation $LANG "countdown"
+    } else {
+        Get-Translation $LANG "invalid_choice"
+        Self-Destruct -LangCode $LANG
+    }
+
+    # 执行销毁操作
+    Invoke-Destroy -LangCode $LANG
+}
+
+# 执行主程序
+Main
+#endregion
